@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stopwatch</title>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --surface: #14141a;
+      --display-bg: #0a0a10;
+      --display-border: #1e1e2e;
+      --glow-green: #00ff88;
+      --glow-red: #ff3355;
+      --digit-color: #e8f4e8;
+      --digit-dim: #1a2a1a;
+      --milli-color: #4aff90;
+      --label-color: #444466;
+      --btn-start-bg: #00cc66;
+      --btn-start-hover: #00ff88;
+      --btn-clear-bg: #cc2244;
+      --btn-clear-hover: #ff3355;
+      --font-mono: 'Courier New', Courier, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: var(--font-mono);
+      overflow: hidden;
+    }
+
+    /* Subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+
+    /* Title */
+    .title {
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      color: var(--label-color);
+    }
+
+    /* Display */
+    .display {
+      position: relative;
+      background: var(--display-bg);
+      border: 2px solid var(--display-border);
+      border-radius: 18px;
+      padding: 28px 44px 32px;
+      min-width: 480px;
+      text-align: center;
+      box-shadow:
+        0 0 0 1px rgba(0,255,136,0.05),
+        0 0 40px rgba(0,0,0,0.8),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .display::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(0,255,136,0.04), transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Seven-segment style digits */
+    .time-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 2px;
+      line-height: 1;
+    }
+
+    .segment {
+      font-size: 5.2rem;
+      font-weight: 700;
+      color: var(--digit-color);
+      letter-spacing: -0.02em;
+      text-shadow:
+        0 0 10px rgba(0,255,136,0.4),
+        0 0 30px rgba(0,255,136,0.15);
+      font-variant-numeric: tabular-nums;
+      min-width: 2ch;
+      text-align: center;
+      transition: text-shadow 0.1s;
+    }
+
+    .separator {
+      font-size: 4.6rem;
+      font-weight: 700;
+      color: var(--glow-green);
+      opacity: 0.6;
+      margin: 0 2px;
+      animation: blink-sep 1s step-end infinite;
+      text-shadow: 0 0 10px rgba(0,255,136,0.5);
+      line-height: 1;
+      align-self: center;
+      padding-bottom: 6px;
+    }
+
+    .separator.paused { animation: none; opacity: 0.2; }
+
+    @keyframes blink-sep {
+      0%, 49% { opacity: 0.65; }
+      50%, 100% { opacity: 0.15; }
+    }
+
+    .millis-row {
+      margin-top: 6px;
+      text-align: right;
+      padding-right: 2px;
+    }
+
+    #millis {
+      font-size: 1.05rem;
+      color: var(--milli-color);
+      opacity: 0.7;
+      letter-spacing: 0.12em;
+      text-shadow: 0 0 8px rgba(0,255,136,0.3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Running state glow */
+    .display.running {
+      box-shadow:
+        0 0 0 1px rgba(0,255,136,0.15),
+        0 0 40px rgba(0,0,0,0.8),
+        0 0 60px rgba(0,255,136,0.06),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    /* Buttons */
+    .buttons {
+      display: flex;
+      gap: 24px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 18px 52px;
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .btn:active { transform: scale(0.96); }
+
+    .btn-start {
+      background: var(--btn-start-bg);
+      color: #001a0a;
+      box-shadow: 0 4px 20px rgba(0,204,102,0.35), 0 1px 0 rgba(255,255,255,0.15) inset;
+    }
+
+    .btn-start:hover {
+      filter: brightness(1.15);
+      box-shadow: 0 4px 30px rgba(0,255,136,0.5), 0 1px 0 rgba(255,255,255,0.15) inset;
+    }
+
+    .btn-start.paused {
+      background: #cc8800;
+      box-shadow: 0 4px 20px rgba(204,136,0,0.4), 0 1px 0 rgba(255,255,255,0.15) inset;
+    }
+
+    .btn-start.paused:hover {
+      filter: brightness(1.15);
+      box-shadow: 0 4px 30px rgba(255,170,0,0.55), 0 1px 0 rgba(255,255,255,0.15) inset;
+    }
+
+    .btn-clear {
+      background: var(--btn-clear-bg);
+      color: #1a0006;
+      box-shadow: 0 4px 20px rgba(204,34,68,0.35), 0 1px 0 rgba(255,255,255,0.1) inset;
+    }
+
+    .btn-clear:hover {
+      filter: brightness(1.15);
+      box-shadow: 0 4px 30px rgba(255,51,85,0.5), 0 1px 0 rgba(255,255,255,0.1) inset;
+    }
+
+    /* Lap list */
+    .laps {
+      max-height: 160px;
+      overflow-y: auto;
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: #222233 transparent;
+    }
+
+    .laps:empty::after {
+      content: '';
+      display: none;
+    }
+
+    .lap-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      color: #556677;
+      letter-spacing: 0.06em;
+      animation: lap-in 0.2s ease-out;
+    }
+
+    @keyframes lap-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .lap-item .lap-n { color: #334455; }
+    .lap-item .lap-t { color: #7799aa; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="title">Stopwatch</div>
+
+    <div class="display" id="display">
+      <div class="time-row">
+        <span class="segment" id="hh">00</span>
+        <span class="separator" id="sep1">:</span>
+        <span class="segment" id="mm">00</span>
+        <span class="separator" id="sep2">:</span>
+        <span class="segment" id="ss">00</span>
+      </div>
+      <div class="millis-row">
+        <span id="millis">000</span>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn btn-start" id="btnStart">Start</button>
+      <button class="btn btn-clear" id="btnClear">Clear</button>
+    </div>
+
+    <div class="laps" id="laps"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
